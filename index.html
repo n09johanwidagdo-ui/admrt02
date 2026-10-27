@@ -1,0 +1,1089 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Administrasi RT 02</title>
+
+<!-- Bootstrap 5 CDN -->
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
+
+<style>
+  body { background-color: #f4f6f9; padding-bottom: 70px; }
+  .navbar-brand { font-weight: 700; }
+  .card-stat { border: none; border-radius: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+  .card-stat .icon-box { width: 48px; height: 48px; border-radius: 12px; display:flex; align-items:center; justify-content:center; font-size:1.4rem; }
+  .nav-pills .nav-link.active { background-color: #0d6efd; }
+  .tab-pane { padding-top: 1rem; }
+  .table-responsive { border-radius: 10px; overflow: hidden; }
+  #loadingOverlay {
+    position: fixed; inset: 0; background: rgba(255,255,255,0.75);
+    display:flex; align-items:center; justify-content:center; z-index: 2000;
+  }
+  .badge-status-lunas { background-color: #198754; }
+  .badge-status-belum { background-color: #dc3545; }
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0; background: #fff;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.08); z-index: 1050; display: none;
+  }
+  .bottom-nav .nav-link { text-align:center; font-size: 0.72rem; color:#555; padding: 6px 0; }
+  .bottom-nav .nav-link.active { color:#0d6efd; font-weight:600; }
+  .bottom-nav .nav-link i { display:block; font-size:1.2rem; }
+  @media (max-width: 768px) {
+    .desktop-tabs { display: none !important; }
+    .bottom-nav { display: flex; }
+  }
+  .admin-only { display: none !important; }
+  body.is-admin .admin-only { display: revert !important; }
+  body.is-admin table .admin-only { display: table-cell !important; }
+  body.is-admin th.admin-only { display: table-cell !important; }
+  .role-badge { font-size: 0.75rem; }
+  #configWarning { display: none; }
+</style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div id="loadingOverlay" style="display:none;">
+  <div class="text-center">
+    <div class="spinner-border text-primary" role="status"></div>
+    <div class="mt-2 fw-semibold text-primary">Memproses...</div>
+  </div>
+</div>
+
+<!-- NAVBAR -->
+<nav class="navbar navbar-dark bg-primary shadow-sm mb-3">
+  <div class="container-fluid">
+    <span class="navbar-brand"><i class="bi bi-houses-fill me-2"></i>Administrasi RT 02</span>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge role-badge bg-light text-dark" id="roleBadge"><i class="bi bi-eye-fill me-1"></i>Mode Pengunjung</span>
+      <button class="btn btn-sm btn-light" id="btnLogin" onclick="openLoginModal()"><i class="bi bi-box-arrow-in-right"></i> Login Admin</button>
+      <button class="btn btn-sm btn-outline-light d-none" id="btnLogout" onclick="logout()"><i class="bi bi-box-arrow-right"></i> Logout</button>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="alert alert-danger py-2 px-3 small mb-3" id="configWarning">
+    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+    <strong>Konfigurasi belum lengkap:</strong> isi variabel <code>API_URL</code> di bagian bawah file ini dengan URL Web App Apps Script Anda.
+  </div>
+
+  <div class="alert alert-info py-2 px-3 small mb-3" id="visitorNotice">
+    <i class="bi bi-info-circle me-1"></i>Anda melihat data sebagai <strong>Pengunjung</strong> (hanya lihat). Login sebagai Admin untuk menambah, mengubah, atau menghapus data.
+  </div>
+
+  <!-- DESKTOP TABS -->
+  <ul class="nav nav-pills mb-3 desktop-tabs gap-2" id="mainTabs">
+    <li class="nav-item"><button class="nav-link active" data-tab="dashboard"><i class="bi bi-speedometer2 me-1"></i>Dashboard</button></li>
+    <li class="nav-item"><button class="nav-link" data-tab="warga"><i class="bi bi-people-fill me-1"></i>Warga</button></li>
+    <li class="nav-item"><button class="nav-link" data-tab="kas"><i class="bi bi-cash-coin me-1"></i>Kas</button></li>
+    <li class="nav-item"><button class="nav-link" data-tab="kaswarga"><i class="bi bi-person-lines-fill me-1"></i>Kas per Warga</button></li>
+    <li class="nav-item"><button class="nav-link" data-tab="aruskas"><i class="bi bi-arrow-left-right me-1"></i>Arus Kas</button></li>
+    <li class="nav-item"><button class="nav-link" data-tab="persuratan"><i class="bi bi-envelope-paper-fill me-1"></i>Persuratan</button></li>
+  </ul>
+
+  <!-- ============ TAB DASHBOARD ============ -->
+  <div class="tab-pane" id="tab-dashboard">
+    <div class="row g-3">
+      <div class="col-6 col-md-3">
+        <div class="card card-stat p-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="icon-box bg-primary bg-opacity-10 text-primary"><i class="bi bi-people-fill"></i></div>
+            <div>
+              <div class="text-muted small">Total Warga</div>
+              <div class="fs-4 fw-bold" id="stat-totalWarga">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card card-stat p-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="icon-box bg-success bg-opacity-10 text-success"><i class="bi bi-check-circle-fill"></i></div>
+            <div>
+              <div class="text-muted small">Lunas Bulan Ini</div>
+              <div class="fs-4 fw-bold" id="stat-lunas">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card card-stat p-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="icon-box bg-danger bg-opacity-10 text-danger"><i class="bi bi-exclamation-circle-fill"></i></div>
+            <div>
+              <div class="text-muted small">Belum Bayar</div>
+              <div class="fs-4 fw-bold" id="stat-belum">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card card-stat p-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="icon-box bg-warning bg-opacity-10 text-warning"><i class="bi bi-wallet2"></i></div>
+            <div>
+              <div class="text-muted small">Saldo Kas</div>
+              <div class="fs-6 fw-bold" id="stat-saldo">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-stat mt-3 p-3">
+      <h6 class="fw-bold mb-2"><i class="bi bi-info-circle me-1"></i>Ringkasan Kas Bulan <span id="dash-bulanTahun">-</span></h6>
+      <p class="mb-0">Total iuran terkumpul bulan ini: <strong id="stat-terkumpul">Rp 0</strong></p>
+    </div>
+  </div>
+
+  <!-- ============ TAB WARGA ============ -->
+  <div class="tab-pane d-none" id="tab-warga">
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+      <h5 class="fw-bold mb-0">Data Warga</h5>
+      <div class="d-flex gap-2">
+        <input type="text" id="searchWarga" class="form-control form-control-sm" placeholder="Cari nama/blok...">
+        <button class="btn btn-primary btn-sm text-nowrap admin-only" onclick="openWargaModal()"><i class="bi bi-plus-lg"></i> Tambah</button>
+      </div>
+    </div>
+    <div class="card card-stat p-2">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="tableWarga">
+          <thead class="table-light">
+            <tr><th>No</th><th>Nama</th><th>Blok</th><th>Status Hunian</th><th class="text-end admin-only">Aksi</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB KAS ============ -->
+  <div class="tab-pane d-none" id="tab-kas">
+    <div class="card card-stat p-3 mb-3">
+      <div class="row g-2 align-items-end">
+        <div class="col-6 col-md-3">
+          <label class="form-label small mb-1">Bulan</label>
+          <select id="filterBulan" class="form-select form-select-sm"></select>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label small mb-1">Tahun</label>
+          <input type="number" id="filterTahun" class="form-control form-control-sm" value="2026">
+        </div>
+        <div class="col-6 col-md-3">
+          <button class="btn btn-primary btn-sm w-100" onclick="loadKas()"><i class="bi bi-search"></i> Tampilkan</button>
+        </div>
+        <div class="col-6 col-md-3 admin-only">
+          <button class="btn btn-success btn-sm w-100" onclick="generateKas()"><i class="bi bi-lightning-fill"></i> Generate Tagihan</button>
+        </div>
+      </div>
+    </div>
+    <div class="card card-stat p-2">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="tableKas">
+          <thead class="table-light">
+            <tr><th>No</th><th>Blok</th><th>Nama</th><th>Jumlah</th><th>Status</th><th class="text-end admin-only">Aksi</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB KAS PER WARGA ============ -->
+  <div class="tab-pane d-none" id="tab-kaswarga">
+    <div class="card card-stat p-3 mb-3">
+      <label class="form-label small mb-1">Pilih Warga</label>
+      <select id="kw-pilihWarga" class="form-select" onchange="loadKasPerWarga()">
+        <option value="">-- Pilih nama warga --</option>
+      </select>
+    </div>
+
+    <div id="kw-content" class="d-none">
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3">
+          <div class="card card-stat p-3">
+            <div class="d-flex align-items-center gap-3">
+              <div class="icon-box bg-success bg-opacity-10 text-success"><i class="bi bi-check-circle-fill"></i></div>
+              <div>
+                <div class="text-muted small">Bulan Lunas</div>
+                <div class="fs-5 fw-bold" id="kw-totalLunas">-</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="card card-stat p-3">
+            <div class="d-flex align-items-center gap-3">
+              <div class="icon-box bg-danger bg-opacity-10 text-danger"><i class="bi bi-exclamation-circle-fill"></i></div>
+              <div>
+                <div class="text-muted small">Bulan Belum Bayar</div>
+                <div class="fs-5 fw-bold" id="kw-totalBelum">-</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="card card-stat p-3">
+            <div class="d-flex align-items-center gap-3">
+              <div class="icon-box bg-primary bg-opacity-10 text-primary"><i class="bi bi-wallet2"></i></div>
+              <div>
+                <div class="text-muted small">Total Terbayar</div>
+                <div class="fs-6 fw-bold" id="kw-totalTerbayar">-</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="card card-stat p-3">
+            <div class="d-flex align-items-center gap-3">
+              <div class="icon-box bg-warning bg-opacity-10 text-warning"><i class="bi bi-hourglass-split"></i></div>
+              <div>
+                <div class="text-muted small">Total Tunggakan</div>
+                <div class="fs-6 fw-bold" id="kw-totalTunggakan">-</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card card-stat p-2">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle mb-0" id="tableKasWarga">
+            <thead class="table-light">
+              <tr><th>No</th><th>Bulan</th><th>Tahun</th><th>Jumlah</th><th>Status</th><th class="text-end admin-only">Aksi</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB ARUS KAS ============ -->
+  <div class="tab-pane d-none" id="tab-aruskas">
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+      <h5 class="fw-bold mb-0">Arus Kas <span class="text-muted small">(Saldo: <span id="aruskas-saldo">Rp 0</span>)</span></h5>
+      <button class="btn btn-primary btn-sm admin-only" onclick="openArusKasModal()"><i class="bi bi-plus-lg"></i> Tambah Transaksi</button>
+    </div>
+    <div class="card card-stat p-2">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="tableArusKas">
+          <thead class="table-light">
+            <tr><th>No</th><th>Tanggal</th><th>Jenis</th><th>Keterangan</th><th>Jumlah</th><th class="text-end admin-only">Aksi</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TAB PERSURATAN ============ -->
+  <div class="tab-pane d-none" id="tab-persuratan">
+    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+      <h5 class="fw-bold mb-0">Arsip Persuratan</h5>
+      <button class="btn btn-primary btn-sm admin-only" onclick="openPersuratanModal()"><i class="bi bi-plus-lg"></i> Tambah Surat</button>
+    </div>
+    <div class="card card-stat p-2">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" id="tablePersuratan">
+          <thead class="table-light">
+            <tr><th>No</th><th>Tanggal</th><th>No. Surat</th><th>Perihal</th><th>Kepada</th><th>Arsip</th><th class="text-end admin-only">Aksi</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- BOTTOM NAV (MOBILE) -->
+<div class="bottom-nav" id="bottomNav">
+  <a href="#" class="nav-link active flex-fill" data-tab="dashboard"><i class="bi bi-speedometer2"></i>Dashboard</a>
+  <a href="#" class="nav-link flex-fill" data-tab="warga"><i class="bi bi-people-fill"></i>Warga</a>
+  <a href="#" class="nav-link flex-fill" data-tab="kas"><i class="bi bi-cash-coin"></i>Kas</a>
+  <a href="#" class="nav-link flex-fill" data-tab="kaswarga"><i class="bi bi-person-lines-fill"></i>Kas Warga</a>
+  <a href="#" class="nav-link flex-fill" data-tab="aruskas"><i class="bi bi-arrow-left-right"></i>Arus Kas</a>
+  <a href="#" class="nav-link flex-fill" data-tab="persuratan"><i class="bi bi-envelope-paper-fill"></i>Surat</a>
+</div>
+
+<!-- ================= MODAL: LOGIN ADMIN ================= -->
+<div class="modal fade" id="modalLogin" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-shield-lock-fill me-1"></i>Login Admin</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">Password Admin</label>
+          <input type="password" class="form-control" id="login-password" placeholder="Masukkan password admin" onkeydown="if(event.key==='Enter')doLogin();">
+        </div>
+        <div class="text-danger small d-none" id="login-error">Password salah. Silakan coba lagi.</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button class="btn btn-primary" onclick="doLogin()"><i class="bi bi-box-arrow-in-right"></i> Masuk</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: WARGA ================= -->
+<div class="modal fade" id="modalWarga" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modalWargaTitle">Tambah Warga</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="warga-id">
+        <div class="mb-2">
+          <label class="form-label">Nama</label>
+          <input type="text" class="form-control" id="warga-nama" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Nomor Blok</label>
+          <input type="text" class="form-control" id="warga-blok" required>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Keterangan Hunian</label>
+          <select class="form-select" id="warga-keterangan">
+            <option value="Pemilik">Pemilik</option>
+            <option value="Pengontrak">Pengontrak</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button class="btn btn-primary" onclick="saveWarga()">Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: ARUS KAS ================= -->
+<div class="modal fade" id="modalArusKas" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Tambah Transaksi Arus Kas</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">Tanggal</label>
+          <input type="date" class="form-control" id="ak-tanggal">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Jenis</label>
+          <select class="form-select" id="ak-jenis">
+            <option value="Masuk">Masuk</option>
+            <option value="Keluar">Keluar</option>
+          </select>
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Keterangan</label>
+          <input type="text" class="form-control" id="ak-keterangan" placeholder="Misal: Perbaikan Pos Satpam">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Jumlah (Rp)</label>
+          <input type="number" class="form-control" id="ak-jumlah">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button class="btn btn-primary" onclick="saveArusKas()">Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: PERSURATAN ================= -->
+<div class="modal fade" id="modalPersuratan" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Tambah Arsip Surat</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-2">
+          <label class="form-label">Tanggal</label>
+          <input type="date" class="form-control" id="ps-tanggal">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Nomor Surat</label>
+          <input type="text" class="form-control" id="ps-nomor">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Perihal</label>
+          <input type="text" class="form-control" id="ps-perihal">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Ditujukan Kepada</label>
+          <input type="text" class="form-control" id="ps-kepada">
+        </div>
+        <div class="mb-2">
+          <label class="form-label">Link Arsip / File (opsional)</label>
+          <input type="text" class="form-control" id="ps-link" placeholder="https://drive.google.com/...">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+        <button class="btn btn-primary" onclick="savePersuratan()">Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bootstrap 5 JS Bundle -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+/* ============================================================
+   ⚠️ KONFIGURASI WAJIB DIISI
+   Ganti dengan URL Web App hasil deploy Code.gs, contoh:
+   'https://script.google.com/macros/s/AKfycbxXXXXXXXXXXXXXXXXXXXXXXXXX/exec'
+   ============================================================ */
+const API_URL = 'GANTI_DENGAN_URL_WEB_APP_ANDA';
+
+/* ============================================================
+   PEMANGGIL API (fetch, menggantikan google.script.run)
+   Selalu POST + Content-Type text/plain agar tidak memicu
+   CORS preflight (Apps Script tidak menangani method OPTIONS).
+   ============================================================ */
+function callApi(action, payload) {
+  return fetch(API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action: action, token: authToken, payload: payload || {} })
+  })
+    .then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    });
+}
+
+/* ============================================================
+   STATE OTENTIKASI
+   ============================================================ */
+let authToken = sessionStorage.getItem('authToken') || null;
+let isAdmin = false;
+
+function applyRoleUI() {
+  document.body.classList.toggle('is-admin', isAdmin);
+  document.getElementById('roleBadge').innerHTML = isAdmin
+    ? '<i class="bi bi-shield-check-fill me-1"></i>Mode Admin'
+    : '<i class="bi bi-eye-fill me-1"></i>Mode Pengunjung';
+  document.getElementById('roleBadge').className = 'badge role-badge ' + (isAdmin ? 'bg-success' : 'bg-light text-dark');
+  document.getElementById('btnLogin').classList.toggle('d-none', isAdmin);
+  document.getElementById('btnLogout').classList.toggle('d-none', !isAdmin);
+  document.getElementById('visitorNotice').classList.toggle('d-none', isAdmin);
+}
+
+function openLoginModal() {
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-error').classList.add('d-none');
+  new bootstrap.Modal(document.getElementById('modalLogin')).show();
+}
+
+function doLogin() {
+  const password = document.getElementById('login-password').value;
+  if (!password) return;
+  showLoading();
+  callApi('loginAdmin', { password: password })
+    .then(function (res) {
+      hideLoading();
+      if (res.success) {
+        authToken = res.token;
+        sessionStorage.setItem('authToken', authToken);
+        isAdmin = true;
+        applyRoleUI();
+        bootstrap.Modal.getInstance(document.getElementById('modalLogin')).hide();
+        toastAlert('Berhasil login sebagai Admin');
+        refreshCurrentTab();
+      } else {
+        document.getElementById('login-error').innerText = res.message;
+        document.getElementById('login-error').classList.remove('d-none');
+      }
+    })
+    .catch(handleError);
+}
+
+function logout() {
+  showLoading();
+  callApi('logoutAdmin', {})
+    .then(function () {
+      hideLoading();
+      authToken = null;
+      isAdmin = false;
+      sessionStorage.removeItem('authToken');
+      applyRoleUI();
+      toastAlert('Anda telah logout, kembali ke mode Pengunjung');
+      refreshCurrentTab();
+    })
+    .catch(handleError);
+}
+
+function verifySessionOnLoad() {
+  if (!authToken) { applyRoleUI(); return; }
+  callApi('verifySession', {})
+    .then(function (res) {
+      isAdmin = !!res.isAdmin;
+      if (!isAdmin) { authToken = null; sessionStorage.removeItem('authToken'); }
+      applyRoleUI();
+    })
+    .catch(function () { applyRoleUI(); });
+}
+
+function refreshCurrentTab() {
+  const activeBtn = document.querySelector('#mainTabs .nav-link.active');
+  const tabName = activeBtn ? activeBtn.dataset.tab : 'dashboard';
+  showTab(tabName);
+}
+
+/* ============================================================
+   NAVIGASI TAB
+   ============================================================ */
+function showTab(tabName) {
+  document.querySelectorAll('.tab-pane').forEach(function (el) { el.classList.add('d-none'); });
+  document.getElementById('tab-' + tabName).classList.remove('d-none');
+
+  document.querySelectorAll('#mainTabs .nav-link').forEach(function (el) {
+    el.classList.toggle('active', el.dataset.tab === tabName);
+  });
+  document.querySelectorAll('#bottomNav .nav-link').forEach(function (el) {
+    el.classList.toggle('active', el.dataset.tab === tabName);
+  });
+
+  if (tabName === 'dashboard') loadDashboard();
+  if (tabName === 'warga') loadWarga();
+  if (tabName === 'kas') loadKas();
+  if (tabName === 'kaswarga') loadKasWargaOptions();
+  if (tabName === 'aruskas') loadArusKas();
+  if (tabName === 'persuratan') loadPersuratan();
+}
+
+document.querySelectorAll('#mainTabs .nav-link, #bottomNav .nav-link').forEach(function (el) {
+  el.addEventListener('click', function (e) {
+    e.preventDefault();
+    showTab(el.dataset.tab);
+  });
+});
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function showLoading() { document.getElementById('loadingOverlay').style.display = 'flex'; }
+function hideLoading() { document.getElementById('loadingOverlay').style.display = 'none'; }
+
+function formatRupiah(angka) {
+  angka = Number(angka) || 0;
+  return 'Rp ' + angka.toLocaleString('id-ID');
+}
+
+function toastAlert(message, type) {
+  type = type || 'success';
+  const wrap = document.createElement('div');
+  wrap.className = 'position-fixed top-0 end-0 p-3';
+  wrap.style.zIndex = 2100;
+  wrap.innerHTML =
+    '<div class="toast align-items-center text-white bg-' + type + ' border-0 show" role="alert">' +
+      '<div class="d-flex">' +
+        '<div class="toast-body">' + message + '</div>' +
+        '<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(wrap);
+  setTimeout(function () { wrap.remove(); }, 3000);
+}
+
+function ensureAdminOrWarn() {
+  if (!isAdmin) {
+    toastAlert('Silakan login sebagai Admin untuk melakukan aksi ini', 'danger');
+    return false;
+  }
+  return true;
+}
+
+/* ============================================================
+   DASHBOARD (publik)
+   ============================================================ */
+function loadDashboard() {
+  showLoading();
+  callApi('getDashboardData', {})
+    .then(function (data) {
+      hideLoading();
+      document.getElementById('stat-totalWarga').innerText = data.totalWarga;
+      document.getElementById('stat-lunas').innerText = data.totalLunas;
+      document.getElementById('stat-belum').innerText = data.totalBelum;
+      document.getElementById('stat-saldo').innerText = formatRupiah(data.saldoKas);
+      document.getElementById('stat-terkumpul').innerText = formatRupiah(data.totalTerkumpulBulanIni);
+      document.getElementById('dash-bulanTahun').innerText = data.bulanIni + ' ' + data.tahunIni;
+    })
+    .catch(handleError);
+}
+
+/* ============================================================
+   WARGA
+   ============================================================ */
+let wargaCache = [];
+
+function loadWarga() {
+  showLoading();
+  callApi('getWargaList', {})
+    .then(function (data) {
+      hideLoading();
+      wargaCache = data;
+      renderWarga(data);
+    })
+    .catch(handleError);
+}
+
+function renderWarga(data) {
+  const tbody = document.querySelector('#tableWarga tbody');
+  tbody.innerHTML = '';
+  data.forEach(function (w, i) {
+    const badge = w.KeteranganHunian === 'Pemilik' ? 'bg-primary' : 'bg-secondary';
+    tbody.innerHTML +=
+      '<tr>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + w.Nama + '</td>' +
+        '<td>' + w.NomorBlok + '</td>' +
+        '<td><span class="badge ' + badge + '">' + w.KeteranganHunian + '</span></td>' +
+        '<td class="text-end admin-only">' +
+          '<button class="btn btn-sm btn-outline-primary me-1" onclick="editWarga(' + w.ID + ')"><i class="bi bi-pencil"></i></button>' +
+          '<button class="btn btn-sm btn-outline-danger" onclick="hapusWarga(' + w.ID + ')"><i class="bi bi-trash"></i></button>' +
+        '</td>' +
+      '</tr>';
+  });
+}
+
+document.getElementById('searchWarga').addEventListener('input', function (e) {
+  const q = e.target.value.toLowerCase();
+  const filtered = wargaCache.filter(function (w) {
+    return String(w.Nama).toLowerCase().includes(q) || String(w.NomorBlok).toLowerCase().includes(q);
+  });
+  renderWarga(filtered);
+});
+
+function openWargaModal() {
+  if (!ensureAdminOrWarn()) return;
+  document.getElementById('modalWargaTitle').innerText = 'Tambah Warga';
+  document.getElementById('warga-id').value = '';
+  document.getElementById('warga-nama').value = '';
+  document.getElementById('warga-blok').value = '';
+  document.getElementById('warga-keterangan').value = 'Pemilik';
+  new bootstrap.Modal(document.getElementById('modalWarga')).show();
+}
+
+function editWarga(id) {
+  if (!ensureAdminOrWarn()) return;
+  const w = wargaCache.find(function (x) { return Number(x.ID) === Number(id); });
+  if (!w) return;
+  document.getElementById('modalWargaTitle').innerText = 'Edit Warga';
+  document.getElementById('warga-id').value = w.ID;
+  document.getElementById('warga-nama').value = w.Nama;
+  document.getElementById('warga-blok').value = w.NomorBlok;
+  document.getElementById('warga-keterangan').value = w.KeteranganHunian;
+  new bootstrap.Modal(document.getElementById('modalWarga')).show();
+}
+
+function saveWarga() {
+  if (!ensureAdminOrWarn()) return;
+  const id = document.getElementById('warga-id').value;
+  const payload = {
+    ID: id,
+    Nama: document.getElementById('warga-nama').value.trim(),
+    NomorBlok: document.getElementById('warga-blok').value.trim(),
+    KeteranganHunian: document.getElementById('warga-keterangan').value
+  };
+  if (!payload.Nama || !payload.NomorBlok) {
+    toastAlert('Nama dan Nomor Blok wajib diisi', 'danger');
+    return;
+  }
+  showLoading();
+  callApi(id ? 'updateWarga' : 'addWarga', payload)
+    .then(function () {
+      hideLoading();
+      bootstrap.Modal.getInstance(document.getElementById('modalWarga')).hide();
+      toastAlert('Data warga berhasil disimpan');
+      loadWarga();
+    })
+    .catch(handleError);
+}
+
+function hapusWarga(id) {
+  if (!ensureAdminOrWarn()) return;
+  if (!confirm('Yakin hapus data warga ini?')) return;
+  showLoading();
+  callApi('deleteWarga', { id: id })
+    .then(function () {
+      hideLoading();
+      toastAlert('Data warga dihapus');
+      loadWarga();
+    })
+    .catch(handleError);
+}
+
+/* ============================================================
+   KAS
+   ============================================================ */
+function initFilterBulan() {
+  callApi('getBulanList', {}).then(function (bulanList) {
+    const sel = document.getElementById('filterBulan');
+    sel.innerHTML = '';
+    bulanList.forEach(function (b, idx) {
+      const opt = document.createElement('option');
+      opt.value = b; opt.innerText = b;
+      if (idx === new Date().getMonth()) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  }).catch(handleError);
+}
+
+function loadKas() {
+  const bulan = document.getElementById('filterBulan').value;
+  const tahun = document.getElementById('filterTahun').value;
+  showLoading();
+  callApi('getKasList', { Bulan: bulan, Tahun: tahun })
+    .then(function (data) {
+      hideLoading();
+      renderKas(data);
+    })
+    .catch(handleError);
+}
+
+function renderKas(data) {
+  const tbody = document.querySelector('#tableKas tbody');
+  tbody.innerHTML = '';
+  data.forEach(function (k, i) {
+    const isLunas = k.Status === 'Lunas';
+    tbody.innerHTML +=
+      '<tr>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + k.NomorBlok + '</td>' +
+        '<td>' + k.NamaWarga + '</td>' +
+        '<td>' + formatRupiah(k.Jumlah) + '</td>' +
+        '<td><span class="badge ' + (isLunas ? 'badge-status-lunas' : 'badge-status-belum') + '">' + k.Status + '</span></td>' +
+        '<td class="text-end admin-only">' +
+          '<button class="btn btn-sm ' + (isLunas ? 'btn-outline-danger' : 'btn-outline-success') + '" onclick="toggleStatusKas(' + k.ID + ', \'' + (isLunas ? 'Belum' : 'Lunas') + '\')">' +
+            (isLunas ? 'Tandai Belum' : 'Tandai Lunas') +
+          '</button>' +
+        '</td>' +
+      '</tr>';
+  });
+  if (data.length === 0) {
+    const colspan = isAdmin ? 6 : 5;
+    tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="text-center text-muted py-3">Belum ada data' + (isAdmin ? '. Klik "Generate Tagihan" untuk membuat tagihan bulan ini.' : ' untuk periode ini.') + '</td></tr>';
+  }
+}
+
+function generateKas() {
+  if (!ensureAdminOrWarn()) return;
+  const bulan = document.getElementById('filterBulan').value;
+  const tahun = document.getElementById('filterTahun').value;
+  showLoading();
+  callApi('generateKasBulanan', { bulan: bulan, tahun: tahun })
+    .then(function (res) {
+      hideLoading();
+      toastAlert('Berhasil membuat ' + res.generated + ' tagihan baru (' + res.skipped + ' sudah ada sebelumnya)');
+      loadKas();
+    })
+    .catch(handleError);
+}
+
+function toggleStatusKas(id, status) {
+  if (!ensureAdminOrWarn()) return;
+  showLoading();
+  callApi('updateStatusKas', { id: id, status: status })
+    .then(function () {
+      hideLoading();
+      toastAlert('Status pembayaran diperbarui');
+      loadKas();
+    })
+    .catch(handleError);
+}
+
+/* ============================================================
+   KAS PER WARGA (riwayat iuran satu anggota, semua bulan/tahun)
+   ============================================================ */
+let kasWargaCache = [];
+
+function loadKasWargaOptions() {
+  const sel = document.getElementById('kw-pilihWarga');
+  const currentValue = sel.value;
+  showLoading();
+  callApi('getWargaList', {})
+    .then(function (data) {
+      hideLoading();
+      data.sort(function (a, b) { return String(a.Nama).localeCompare(String(b.Nama)); });
+      sel.innerHTML = '<option value="">-- Pilih nama warga --</option>';
+      data.forEach(function (w) {
+        const opt = document.createElement('option');
+        opt.value = w.NomorBlok;
+        opt.innerText = w.Nama + ' (Blok ' + w.NomorBlok + ')';
+        sel.appendChild(opt);
+      });
+      if (currentValue) {
+        sel.value = currentValue;
+        if (sel.value) loadKasPerWarga();
+      }
+    })
+    .catch(handleError);
+}
+
+function loadKasPerWarga() {
+  const nomorBlok = document.getElementById('kw-pilihWarga').value;
+  if (!nomorBlok) {
+    document.getElementById('kw-content').classList.add('d-none');
+    return;
+  }
+  showLoading();
+  callApi('getKasPerWarga', { nomorBlok: nomorBlok })
+    .then(function (data) {
+      hideLoading();
+      kasWargaCache = data.riwayat;
+      document.getElementById('kw-content').classList.remove('d-none');
+      document.getElementById('kw-totalLunas').innerText = data.totalLunas;
+      document.getElementById('kw-totalBelum').innerText = data.totalBelum;
+      document.getElementById('kw-totalTerbayar').innerText = formatRupiah(data.totalTerbayar);
+      document.getElementById('kw-totalTunggakan').innerText = formatRupiah(data.totalTunggakan);
+      renderKasWarga(data.riwayat);
+    })
+    .catch(handleError);
+}
+
+function renderKasWarga(data) {
+  const tbody = document.querySelector('#tableKasWarga tbody');
+  tbody.innerHTML = '';
+  data.forEach(function (k, i) {
+    const isLunas = k.Status === 'Lunas';
+    tbody.innerHTML +=
+      '<tr>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + k.Bulan + '</td>' +
+        '<td>' + k.Tahun + '</td>' +
+        '<td>' + formatRupiah(k.Jumlah) + '</td>' +
+        '<td><span class="badge ' + (isLunas ? 'badge-status-lunas' : 'badge-status-belum') + '">' + k.Status + '</span></td>' +
+        '<td class="text-end admin-only">' +
+          '<button class="btn btn-sm ' + (isLunas ? 'btn-outline-danger' : 'btn-outline-success') + '" onclick="toggleStatusKasWarga(' + k.ID + ', \'' + (isLunas ? 'Belum' : 'Lunas') + '\')">' +
+            (isLunas ? 'Tandai Belum' : 'Tandai Lunas') +
+          '</button>' +
+        '</td>' +
+      '</tr>';
+  });
+  if (data.length === 0) {
+    const colspan = isAdmin ? 6 : 5;
+    tbody.innerHTML = '<tr><td colspan="' + colspan + '" class="text-center text-muted py-3">Belum ada riwayat kas untuk warga ini. Tagihan dibuat lewat menu "Kas" (Generate Tagihan).</td></tr>';
+  }
+}
+
+function toggleStatusKasWarga(id, status) {
+  if (!ensureAdminOrWarn()) return;
+  showLoading();
+  callApi('updateStatusKas', { id: id, status: status })
+    .then(function () {
+      hideLoading();
+      toastAlert('Status pembayaran diperbarui');
+      loadKasPerWarga();
+    })
+    .catch(handleError);
+}
+
+/* ============================================================
+   ARUS KAS
+   ============================================================ */
+function loadArusKas() {
+  showLoading();
+  callApi('getArusKasList', {})
+    .then(function (data) {
+      hideLoading();
+      renderArusKas(data);
+    })
+    .catch(handleError);
+
+  callApi('getSaldoKas', {})
+    .then(function (saldo) {
+      document.getElementById('aruskas-saldo').innerText = formatRupiah(saldo);
+    })
+    .catch(function () {});
+}
+
+function renderArusKas(data) {
+  const tbody = document.querySelector('#tableArusKas tbody');
+  tbody.innerHTML = '';
+  data.forEach(function (a, i) {
+    const isMasuk = a.Jenis === 'Masuk';
+    tbody.innerHTML +=
+      '<tr>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + a.Tanggal + '</td>' +
+        '<td><span class="badge ' + (isMasuk ? 'bg-success' : 'bg-danger') + '">' + a.Jenis + '</span></td>' +
+        '<td>' + a.Keterangan + '</td>' +
+        '<td class="' + (isMasuk ? 'text-success' : 'text-danger') + ' fw-semibold">' + (isMasuk ? '+' : '-') + formatRupiah(a.Jumlah) + '</td>' +
+        '<td class="text-end admin-only"><button class="btn btn-sm btn-outline-danger" onclick="hapusArusKas(' + a.ID + ')"><i class="bi bi-trash"></i></button></td>' +
+      '</tr>';
+  });
+}
+
+function openArusKasModal() {
+  if (!ensureAdminOrWarn()) return;
+  document.getElementById('ak-tanggal').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('ak-jenis').value = 'Masuk';
+  document.getElementById('ak-keterangan').value = '';
+  document.getElementById('ak-jumlah').value = '';
+  new bootstrap.Modal(document.getElementById('modalArusKas')).show();
+}
+
+function saveArusKas() {
+  if (!ensureAdminOrWarn()) return;
+  const payload = {
+    Tanggal: document.getElementById('ak-tanggal').value,
+    Jenis: document.getElementById('ak-jenis').value,
+    Keterangan: document.getElementById('ak-keterangan').value.trim(),
+    Jumlah: document.getElementById('ak-jumlah').value
+  };
+  if (!payload.Keterangan || !payload.Jumlah) {
+    toastAlert('Keterangan dan Jumlah wajib diisi', 'danger');
+    return;
+  }
+  showLoading();
+  callApi('addArusKas', payload)
+    .then(function () {
+      hideLoading();
+      bootstrap.Modal.getInstance(document.getElementById('modalArusKas')).hide();
+      toastAlert('Transaksi berhasil dicatat');
+      loadArusKas();
+    })
+    .catch(handleError);
+}
+
+function hapusArusKas(id) {
+  if (!ensureAdminOrWarn()) return;
+  if (!confirm('Yakin hapus transaksi ini?')) return;
+  showLoading();
+  callApi('deleteArusKas', { id: id })
+    .then(function () {
+      hideLoading();
+      toastAlert('Transaksi dihapus');
+      loadArusKas();
+    })
+    .catch(handleError);
+}
+
+/* ============================================================
+   PERSURATAN
+   ============================================================ */
+function loadPersuratan() {
+  showLoading();
+  callApi('getPersuratanList', {})
+    .then(function (data) {
+      hideLoading();
+      renderPersuratan(data);
+    })
+    .catch(handleError);
+}
+
+function renderPersuratan(data) {
+  const tbody = document.querySelector('#tablePersuratan tbody');
+  tbody.innerHTML = '';
+  data.forEach(function (p, i) {
+    tbody.innerHTML +=
+      '<tr>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + p.Tanggal + '</td>' +
+        '<td>' + p.NomorSurat + '</td>' +
+        '<td>' + p.Perihal + '</td>' +
+        '<td>' + p.Kepada + '</td>' +
+        '<td>' + (p.LinkArsip ? '<a href="' + p.LinkArsip + '" target="_blank"><i class="bi bi-box-arrow-up-right"></i> Lihat</a>' : '-') + '</td>' +
+        '<td class="text-end admin-only"><button class="btn btn-sm btn-outline-danger" onclick="hapusPersuratan(' + p.ID + ')"><i class="bi bi-trash"></i></button></td>' +
+      '</tr>';
+  });
+}
+
+function openPersuratanModal() {
+  if (!ensureAdminOrWarn()) return;
+  document.getElementById('ps-tanggal').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('ps-nomor').value = '';
+  document.getElementById('ps-perihal').value = '';
+  document.getElementById('ps-kepada').value = '';
+  document.getElementById('ps-link').value = '';
+  new bootstrap.Modal(document.getElementById('modalPersuratan')).show();
+}
+
+function savePersuratan() {
+  if (!ensureAdminOrWarn()) return;
+  const payload = {
+    Tanggal: document.getElementById('ps-tanggal').value,
+    NomorSurat: document.getElementById('ps-nomor').value.trim(),
+    Perihal: document.getElementById('ps-perihal').value.trim(),
+    Kepada: document.getElementById('ps-kepada').value.trim(),
+    LinkArsip: document.getElementById('ps-link').value.trim()
+  };
+  if (!payload.NomorSurat || !payload.Perihal) {
+    toastAlert('Nomor Surat dan Perihal wajib diisi', 'danger');
+    return;
+  }
+  showLoading();
+  callApi('addPersuratan', payload)
+    .then(function () {
+      hideLoading();
+      bootstrap.Modal.getInstance(document.getElementById('modalPersuratan')).hide();
+      toastAlert('Arsip surat berhasil disimpan');
+      loadPersuratan();
+    })
+    .catch(handleError);
+}
+
+function hapusPersuratan(id) {
+  if (!ensureAdminOrWarn()) return;
+  if (!confirm('Yakin hapus arsip surat ini?')) return;
+  showLoading();
+  callApi('deletePersuratan', { id: id })
+    .then(function () {
+      hideLoading();
+      toastAlert('Arsip surat dihapus');
+      loadPersuratan();
+    })
+    .catch(handleError);
+}
+
+/* ============================================================
+   ERROR HANDLER GLOBAL
+   ============================================================ */
+function handleError(err) {
+  hideLoading();
+  console.error(err);
+  const msg = err && err.message ? err.message : String(err);
+  toastAlert('Terjadi kesalahan: ' + msg, 'danger');
+  if (msg.indexOf('Akses ditolak') !== -1) {
+    isAdmin = false;
+    authToken = null;
+    sessionStorage.removeItem('authToken');
+    applyRoleUI();
+  }
+}
+
+/* ============================================================
+   INIT
+   ============================================================ */
+window.addEventListener('load', function () {
+  if (!API_URL || API_URL.indexOf('GANTI_DENGAN') === 0) {
+    document.getElementById('configWarning').style.display = 'block';
+    return;
+  }
+  verifySessionOnLoad();
+  initFilterBulan();
+  loadDashboard();
+});
+</script>
+</body>
+</html>
