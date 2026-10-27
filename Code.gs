@@ -24,7 +24,7 @@
  */
 
 const IURAN_DEFAULT = 30000;
-const DEFAULT_ADMIN_PASSWORD = 'nDalem12345';
+const DEFAULT_ADMIN_PASSWORD = 'nDalem';
 const TOKEN_DURATION_SECONDS = 21600; // 6 jam (maksimum CacheService)
 
 const SHEET_NAMES = {
